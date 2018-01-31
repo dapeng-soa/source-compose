@@ -310,7 +310,7 @@ case class Service(name: String, projectName: String, gitURL: String, gitBranch:
   }
 
   private def sbtDocker(projectPath: Path) = {
-    val sbtOpts = List("docker")
+    val sbtOpts = List("publishLocal", "docker")
     val buildResult = %.`sbt`(sbtOpts)(projectPath)
 
     if (buildResult != 0) System.exit(buildResult)
@@ -350,7 +350,7 @@ case class Service(name: String, projectName: String, gitURL: String, gitBranch:
       println(s" start cleaning depend project: ${buildDependService.projectName}")
       sclean(_projectPath)
       println(s" end cleaning depend project: ${buildDependService.projectName}")
-      // support maven project only
+
       if (isMvnCommand(_projectPath)) {
         mvnInstall(_projectPath,mvnProfile)
 

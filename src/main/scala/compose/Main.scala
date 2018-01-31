@@ -184,7 +184,7 @@ object Main {
       service.updateGid(context)
     }
 
-    exitWhileFailed("scompose")(%%.git("commit", "-am", s"update gid for ${context.scomposeBranch}")(cwd))
+    intercept(%%.git("commit", "-am", s"update gid for ${context.scomposeBranch}")(cwd))
     println("update commit id end. If you want to submit it to gitlab, just do: git push")
   }
 
