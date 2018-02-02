@@ -318,7 +318,7 @@ case class Service(name: String, projectName: String, gitURL: String, gitBranch:
 
 
   private def sbtPackage(projectPath: Path) = {
-    val sbtOpts = List("package")
+    val sbtOpts = List("package", "publishLocal")
     val buildResult = %.`sbt`(sbtOpts)(projectPath)
     if (buildResult != 0) System.exit(buildResult)
   }
