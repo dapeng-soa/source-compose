@@ -310,7 +310,7 @@ case class Service(name: String, projectName: String, gitURL: String, gitBranch:
   }
 
   private def sbtDocker(projectPath: Path) = {
-    val sbtOpts = List("publishLocal", "docker")
+    val sbtOpts = List("compile", "publishLocal", "docker")
     val buildResult = %.`sbt`(sbtOpts)(projectPath)
 
     if (buildResult != 0) System.exit(buildResult)
@@ -318,7 +318,7 @@ case class Service(name: String, projectName: String, gitURL: String, gitBranch:
 
 
   private def sbtPackage(projectPath: Path) = {
-    val sbtOpts = List("package", "publishLocal")
+    val sbtOpts = List("compile", "package", "publishLocal")
     val buildResult = %.`sbt`(sbtOpts)(projectPath)
     if (buildResult != 0) System.exit(buildResult)
   }
