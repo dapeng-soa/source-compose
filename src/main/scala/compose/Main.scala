@@ -180,7 +180,7 @@ object Main {
 
     println()
 
-    todos.flatMap(context.services(_).relatedSources).toSet[Service].foreach { service =>
+    (todos.flatMap(context.services(_).relatedSources).toSet[Service] -- (todos.flatMap(context.services(_).buildDepends).toSet[Service])).foreach { service =>
       service.updateGid(context)
     }
 

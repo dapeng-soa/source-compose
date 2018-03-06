@@ -48,8 +48,11 @@ class Context {
         (label.substring(0, pos) -> label.substring(pos + 1))
       }.toMap
 
+      // 是否是dockerHub上的共有镜像, 例如redis
+      val publicImage = labels.getOrElse("project.extra", "").contains("public-image")
+
       val Pattern = """(.*/(.*?)\.git)@@(.*)""".r
-      val Pattern(gitURL, gitName, gitBranch) = labels("project.source")
+      val Pattern(gitURL, gitName, gitBranch) = if (publicImage) "dapeng/dapeng.git@@master" else labels("project.source")
 
       val relatedSources = labels.filterKeys(_.startsWith("project.source.")).map { case (key, value) =>
         val Pattern(gitURL, name, branch) = value
@@ -100,7 +103,7 @@ class Context {
         image = service("image").toString,
         gitSubmoduleFolder = labels.get("project.submodule-folder"),
         npmFolder = labels.get("project.npm-folder"),
-        publicImage = labels.getOrElse("project.extra", "").contains("public-image"))
+        publicImage = publicImage)
     }
 
 

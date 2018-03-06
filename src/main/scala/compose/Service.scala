@@ -231,31 +231,32 @@ case class Service(name: String, projectName: String, gitURL: String,
           intercept(%%.git("branch", "-d", gitBranch)(projectPath))
           exitWhileFailed(name)(%%.git("checkout", gitBranch)(projectPath))
           if (isGitSubmodule) {
-            exitWhileFailed(name)(%%.git("submodule update --remote")(projectPath))
+            exitWhileFailed(name)(%%.git("submodule", "update", "--remote")(projectPath))
           }
         }
         else {
           exitWhileFailed(name)(%%.git("checkout", ".")(projectPath))
           exitWhileFailed(name)(%%.git("pull")(projectPath))
           if (isGitSubmodule) {
-            exitWhileFailed(name)(%%.git("submodule update --remote")(projectPath))
+            exitWhileFailed(name)(%%.git("submodule", "update", "--remote")(projectPath))
           }
         }
       }
       else {
         // clone the project
         projectPath.toIO.mkdir()
-        val cloneCmd = if (isGitSubmodule) "clone --recursive" else "clone"
-        exitWhileFailed(name)(%%.git(cloneCmd, gitURL)(workspacePath))
+        if (isGitSubmodule) exitWhileFailed(name)(%%.git("clone","--recursive", gitURL)(workspacePath))
+        else
+          exitWhileFailed(name)(%%.git("clone", gitURL)(workspacePath))
         if (isGitSubmodule) {
-          exitWhileFailed(name)(%%.git("submodule update --remote")(projectPath))
-          exitWhileFailed(name)(%%.git(s"config -f .gitmodules submodule.${gitSubmoduleFolder.get}.branch", gitBranch)(projectPath))
+          exitWhileFailed(name)(%%.git("submodule", "update", "--remote")(projectPath))
+          exitWhileFailed(name)(%%.git(s"config","-f", ".gitmodules", "submodule.${gitSubmoduleFolder.get}.branch", gitBranch)(projectPath))
         }
         if (gitBranch != "master") {
           exitWhileFailed(name)(%%.git("checkout", gitBranch)(projectPath))
           exitWhileFailed(name)(%%.git("pull")(projectPath))
           if (isGitSubmodule) {
-            exitWhileFailed(name)(%%.git("submodule update --remote")(projectPath))
+            exitWhileFailed(name)(%%.git("submodule", "update", "--remote")(projectPath))
           }
         }
       }
@@ -286,7 +287,7 @@ case class Service(name: String, projectName: String, gitURL: String,
           npmFolder.foreach(_npmFolder => {
             val npmPath = Path(_npmFolder, projectPath)
             exitWhileFailed(name)(%%.npm("install")(npmPath))
-            exitWhileFailed(name)(%%.npm("run build")(npmPath))
+            exitWhileFailed(name)(%%.npm("run", "build")(npmPath))
           })
 
           if (isMvnCommand(projectPath)) mvnInstall(projectPath, mvnProfile)
