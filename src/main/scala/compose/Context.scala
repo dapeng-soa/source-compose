@@ -25,13 +25,12 @@ class Context {
   var handled: Set[String] = Set()
 
 
-
   val workspace = {
     val prop = System.getProperty("COMPOSE_WORKSPACE")
-    if(prop != null) prop
+    if (prop != null) prop
     else {
       val env = System.getenv("COMPOSE_WORKSPACE")
-      if(env != null) env
+      if (env != null) env
       else throw new RuntimeException("please specify COMPOSE_WORKSPACE via -D or environment.")
     }
   }
@@ -40,49 +39,82 @@ class Context {
     getNonDetachGitBranch(cwd)
   }
 
-  def loadConfiguration(ymlFiles: Seq[Path]): Context ={
+  def loadConfiguration(ymlFiles: Seq[Path]): Context = {
 
-    def buildService(name:String, service: collection.mutable.Map[String, Any]): Service = {
+    def buildService(name: String, service: collection.mutable.Map[String, Any]): Service = {
 
       val labels: Map[String, String] = service("labels").asInstanceOf[java.util.List[String]].asScala.map { label =>
         val pos = label.indexOf('=')
-        (label.substring(0, pos) -> label.substring(pos+1) )
+        (label.substring(0, pos) -> label.substring(pos + 1))
       }.toMap
 
       val Pattern = """(.*/(.*?)\.git)@@(.*)""".r
       val Pattern(gitURL, gitName, gitBranch) = labels("project.source")
 
-      val relatedSources = labels.filterKeys(_.startsWith("project.source.")).map { case(key, value) =>
+      val relatedSources = labels.filterKeys(_.startsWith("project.source.")).map { case (key, value) =>
         val Pattern(gitURL, name, branch) = value
-        Service(name, name, gitURL, branch, Nil, Nil, Nil, "")
+        Service(
+          name = name,
+          projectName = name,
+          gitURL = gitURL,
+          gitBranch = branch,
+          relatedSources = Nil,
+          depends = Nil,
+          buildDepends = Nil,
+          image = "",
+          gitSubmoduleFolder = None,
+          npmFolder = None,
+          publicImage = false
+        )
       }.toList
 
-      val depends: Array[String] = labels.getOrElse("project.depends","").split(",").map(_.trim).filterNot(_.isEmpty)
+      val depends: Array[String] = labels.getOrElse("project.depends", "").split(",").map(_.trim).filterNot(_.isEmpty)
 
       val buildDepends = labels.filterKeys(_.startsWith("project.build-depends.")).toList
         .sortBy(i => (i._1.substring(i._1.lastIndexOf(".") + 1)).toInt)
-        .map { case(_, value) =>
-        val Pattern(gitURL, name, branch) = value
-        Service(name, name, gitURL, branch, Nil, Nil, Nil, "")
-      }
+        .map { case (_, value) =>
+          val Pattern(gitURL, name, branch) = value
+          Service(
+            name = name,
+            projectName = name,
+            gitURL = gitURL,
+            gitBranch = branch,
+            relatedSources = Nil,
+            depends = Nil,
+            buildDepends = Nil,
+            image = "",
+            gitSubmoduleFolder = None,
+            npmFolder = None,
+            publicImage = false
+          )
+        }
 
-      Service(name = name, projectName = gitName, gitURL =  gitURL, gitBranch = gitBranch,
-        relatedSources = relatedSources:::buildDepends, depends = depends.toList, buildDepends = buildDepends, image = service("image").toString)
+
+      Service(name = name,
+        projectName = gitName,
+        gitURL = gitURL,
+        gitBranch = gitBranch,
+        relatedSources = relatedSources ::: buildDepends,
+        depends = depends.toList,
+        buildDepends = buildDepends,
+        image = service("image").toString,
+        gitSubmoduleFolder = labels.get("project.submodule-folder"),
+        npmFolder = labels.get("project.npm-folder"),
+        publicImage = labels.getOrElse("project.extra", "").contains("public-image"))
     }
-
 
 
     ymlFiles.foreach { (ymlFile: Path) =>
       val content: String = read(ymlFile, "utf-8")
 
-      val yaml = new Yaml().load(content).asInstanceOf[java.util.Map[String,Any]].asScala
+      val yaml = new Yaml().load(content).asInstanceOf[java.util.Map[String, Any]].asScala
 
-      val servicesYaml = yaml("services").asInstanceOf[java.util.Map[String,Any]].asScala
+      val servicesYaml = yaml("services").asInstanceOf[java.util.Map[String, Any]].asScala
       val services = servicesYaml.map {
         case (name, serviceNode) => buildService(name, serviceNode.asInstanceOf[java.util.Map[String, Any]].asScala)
       }.toList
 
-      this.services ++= services.map( service => (service.name, service) ).toMap
+      this.services ++= services.map(service => (service.name, service)).toMap
     }
 
     // 所有的构建依赖api包,都必须是同一分支, 否则就报错
@@ -92,9 +124,9 @@ class Context {
     }
 
     this.sortedServices = sort(this.services)
-//    this.sortedServices.foreach { service =>
-//      println(s"${service.name} => ${service.depends}")
-//    }
+    //    this.sortedServices.foreach { service =>
+    //      println(s"${service.name} => ${service.depends}")
+    //    }
 
     this
   }
@@ -102,22 +134,22 @@ class Context {
   def sort(services: Map[String, Service]): List[Service] = {
 
     val todo: mutable.Buffer[Service] = scala.collection.mutable.Buffer[Service]() ++ services.values
-    val sorted  = scala.collection.mutable.Buffer[Service]()
+    val sorted = scala.collection.mutable.Buffer[Service]()
 
-    todo.foreach{ service =>
-      val invalidDepends = service.depends.filter(name => !services.contains(name) )
+    todo.foreach { service =>
+      val invalidDepends = service.depends.filter(name => !services.contains(name))
       assert(invalidDepends.isEmpty, s"service ${service.name} has invalid depends $invalidDepends")
     }
 
-    val items =todo.filter(service => service.depends.isEmpty)
+    val items = todo.filter(service => service.depends.isEmpty)
     todo --= items
     sorted ++= items
 
-    while(todo.nonEmpty) {
+    while (todo.nonEmpty) {
       val items = todo.filter { service =>
-        service.depends.forall( dep => sorted.exists(_.name == dep) )
+        service.depends.forall(dep => sorted.exists(_.name == dep))
       }
-      if(items.nonEmpty) {
+      if (items.nonEmpty) {
         todo --= items
         sorted ++= items
       }
