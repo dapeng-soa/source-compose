@@ -286,8 +286,13 @@ case class Service(name: String, projectName: String, gitURL: String,
 
           npmFolder.foreach(_npmFolder => {
             val npmPath = Path(_npmFolder, projectPath)
-            exitWhileFailed(name)(%%.npm("install")(npmPath))
-            exitWhileFailed(name)(%%.npm("run", "build")(npmPath))
+            val buildResult = %.npm("install")(npmPath)
+
+            if (buildResult != 0) System.exit(buildResult)
+
+            val buildResult2 = %.npm("run", "build")(npmPath)
+
+            if (buildResult2 != 0) System.exit(buildResult2)
           })
 
           if (isMvnCommand(projectPath)) mvnInstall(projectPath, mvnProfile)
