@@ -280,7 +280,7 @@ case class Service(name: String, projectName: String, gitURL: String,
       // support maven project only
       val realImage = getRealImage(gids)
       if (isMvnCommand(projectPath) || isSbtCommand(projectPath)) {
-        if (isNeedBuildLocally(realImage)) {
+        if (gitSubmoduleFolder.isDefined || isNeedBuildLocally(realImage)) {
           println(s"${realImage} not found, now begin to build one, please wait...")
           println(s" build handled services: ${context.handled}")
 
