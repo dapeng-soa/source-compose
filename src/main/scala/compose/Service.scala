@@ -245,12 +245,12 @@ case class Service(name: String, projectName: String, gitURL: String,
       else {
         // clone the project
         projectPath.toIO.mkdir()
-        if (isGitSubmodule) exitWhileFailed(name)(%%.git("clone","--recursive", gitURL)(workspacePath))
+        if (isGitSubmodule) exitWhileFailed(name)(%%.git("clone", "--recursive", gitURL)(workspacePath))
         else
           exitWhileFailed(name)(%%.git("clone", gitURL)(workspacePath))
         if (isGitSubmodule) {
           exitWhileFailed(name)(%%.git("submodule", "update", "--remote")(projectPath))
-          exitWhileFailed(name)(%%.git(s"config","-f", ".gitmodules", "submodule.${gitSubmoduleFolder.get}.branch", gitBranch)(projectPath))
+          exitWhileFailed(name)(%%.git(s"config", "-f", ".gitmodules", "submodule.${gitSubmoduleFolder.get}.branch", gitBranch)(projectPath))
         }
         if (gitBranch != "master") {
           exitWhileFailed(name)(%%.git("checkout", gitBranch)(projectPath))
@@ -412,10 +412,18 @@ case class Service(name: String, projectName: String, gitURL: String,
   }
 
 
+  /**
+    * 只构建依赖的api
+    * @param projectPath
+    */
   private def sbtPackage(projectPath: Path) = {
-    val sbtOpts = List("compile", "package", "publishLocal", "publishM2")
-    val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpts)(projectPath) else %.`sbt`(sbtOpts)(projectPath)
-    if (buildResult != 0) System.exit(buildResult)
+    val sbtOpts = List("api/compile", "api/package", "api/publishLocal", "api/publishM2")
+
+    sbtOpts.foreach(sbtOpt => {
+      val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpt)(projectPath) else %.`sbt`(sbtOpt)(projectPath)
+      if (buildResult != 0) System.exit(buildResult)
+    })
+
   }
 
   private def isMvnCommand(projectPath: Path) = (ls ! projectPath |? (_.name == "pom.xml")).nonEmpty
