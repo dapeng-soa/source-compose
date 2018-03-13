@@ -341,7 +341,8 @@ case class Service(name: String, projectName: String, gitURL: String,
         if (Main.isWinOs) exitWhileFailed(name)(%%.`mvn.bat`("clean")(projectPath))
         else exitWhileFailed(name)(%%.mvn("clean")(projectPath))
       } else if (isSbtCommand(projectPath)) {
-        exitWhileFailed(name)(%%.sbt("clean")(projectPath))
+        if (Main.isWinOs) exitWhileFailed(name)(%%.`sbt.bat`("clean")(projectPath))
+        else exitWhileFailed(name)(%%.sbt("clean")(projectPath))
       }
     }
   }
@@ -405,7 +406,7 @@ case class Service(name: String, projectName: String, gitURL: String,
 
   private def sbtDocker(projectPath: Path) = {
     val sbtOpts = List("compile", "publishLocal", "docker")
-    val buildResult = %.`sbt`(sbtOpts)(projectPath)
+    val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpts)(projectPath) else %.`sbt`(sbtOpts)(projectPath)
 
     if (buildResult != 0) System.exit(buildResult)
   }
@@ -413,7 +414,7 @@ case class Service(name: String, projectName: String, gitURL: String,
 
   private def sbtPackage(projectPath: Path) = {
     val sbtOpts = List("compile", "package", "publishLocal", "publishM2")
-    val buildResult = %.`sbt`(sbtOpts)(projectPath)
+    val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpts)(projectPath) else %.`sbt`(sbtOpts)(projectPath)
     if (buildResult != 0) System.exit(buildResult)
   }
 
