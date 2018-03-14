@@ -372,7 +372,7 @@ case class Service(name: String, projectName: String, gitURL: String,
       val realImage = getRealImage(gids)
       println(s" realImage: ${realImage}")
 
-      if (isNeedBuildLocally(realImage)) {
+      if (npmFolder.isDefined || isNeedBuildLocally(realImage)) {
         println(s"need rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
         buildDependsProjects(context, mvnProfile)
       }
