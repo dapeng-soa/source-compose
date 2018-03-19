@@ -278,7 +278,7 @@ case class Service(name: String, projectName: String, gitURL: String,
       val projectPath = Path(projectName, Path(context.workspace))
 
       // support maven project only
-      val realImage = getRealImage(gids)
+      val realImage = getRealImage(image,gids)
       if (isMvnCommand(projectPath) || isSbtCommand(projectPath)) {
         if (gitSubmoduleFolder.isDefined || isNeedBuildLocally(realImage)) {
           println(s"${realImage} not found, now begin to build one, please wait...")
@@ -351,7 +351,7 @@ case class Service(name: String, projectName: String, gitURL: String,
     if (!publicImage) {
       println(s"$projectName build begin")
       val beginTimeInMills = System.currentTimeMillis()
-      val realImage = getRealImage(gids)
+      val realImage = getRealImage(image,gids)
       println(s" realImage: ${realImage}")
 
       if (isNeedBuildLocally(realImage)) {
@@ -369,7 +369,7 @@ case class Service(name: String, projectName: String, gitURL: String,
       println(s"$projectName rebuild begin")
 
       val beginTimeInMills = System.currentTimeMillis()
-      val realImage = getRealImage(gids)
+      val realImage = getRealImage(image,gids)
       println(s" realImage: ${realImage}")
 
       if (npmFolder.isDefined || isNeedBuildLocally(realImage)) {
@@ -450,22 +450,29 @@ case class Service(name: String, projectName: String, gitURL: String,
     }.foreach { buildDependService =>
       println(s"${buildDependService.projectName} make begin")
       val _projectPath = Path(buildDependService.projectName, Path(context.workspace))
-      println(s" start cleaning depend project: ${buildDependService.projectName}")
-      sclean(_projectPath)
-      println(s" end cleaning depend project: ${buildDependService.projectName}")
+      val dependencyProjectImage = s"${buildDependService.image}:${getGitCommitId(_projectPath)}"
+      println(s" project ${buildDependService.projectName} image is: ${dependencyProjectImage}")
+      //1. 如果依赖的镜像不存在，则认为需要重新构建
+      if (isNeedBuildLocally(dependencyProjectImage)) {
+        println(s" start cleaning depend project: ${buildDependService.projectName}")
+        sclean(_projectPath)
+        println(s" end cleaning depend project: ${buildDependService.projectName}")
 
-      if (isMvnCommand(_projectPath)) {
-        mvnInstall(_projectPath, mvnProfile)
-
-      } else if (isSbtCommand(_projectPath)) {
-        sbtPackage(_projectPath) //依赖项目一般都是打包，不会打镜像
+        if (isMvnCommand(_projectPath)) {
+          mvnInstall(_projectPath, mvnProfile)
+        } else if (isSbtCommand(_projectPath)) {
+          sbtPackage(_projectPath) //依赖项目一般都是打包，不会打镜像
+        }
+        context.handled += buildDependService.name
+      } else {
+        println(s" dependency project: ${buildDependService.name} has built already, no need to rebuild................")
       }
-      context.handled += buildDependService.name
+
     }
   }
 
 
-  private def getRealImage(gids: Map[String, String]): String = {
+  private def getRealImage(image: String, gids: Map[String, String]): String = {
     // check if images has been make
     // two forms of images:
     // 1. image:${git.branch}-${xx_gid}  for biz projects which will be change frequently
