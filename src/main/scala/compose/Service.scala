@@ -414,15 +414,14 @@ case class Service(name: String, projectName: String, gitURL: String,
 
   /**
     * 只构建依赖的api
+    *
     * @param projectPath
     */
   private def sbtPackage(projectPath: Path) = {
     val sbtOpts = List("api/compile", "api/package", "api/publishLocal", "api/publishM2")
 
-    sbtOpts.foreach(sbtOpt => {
-      val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpt)(projectPath) else %.`sbt`(sbtOpt)(projectPath)
-      if (buildResult != 0) System.exit(buildResult)
-    })
+    val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpts)(projectPath) else %.`sbt`(sbtOpts)(projectPath)
+    if (buildResult != 0) System.exit(buildResult)
 
   }
 
