@@ -278,7 +278,7 @@ case class Service(name: String, projectName: String, gitURL: String,
       val projectPath = Path(projectName, Path(context.workspace))
 
       // support maven project only
-      val realImage = getRealImage(image,gids)
+      val realImage = getRealImage(name,image,gids)
       if (isMvnCommand(projectPath) || isSbtCommand(projectPath)) {
         if (gitSubmoduleFolder.isDefined || isNeedBuildLocally(realImage)) {
           println(s"${realImage} not found, now begin to build one, please wait...")
@@ -351,12 +351,12 @@ case class Service(name: String, projectName: String, gitURL: String,
     if (!publicImage) {
       println(s"$projectName build begin")
       val beginTimeInMills = System.currentTimeMillis()
-      val realImage = getRealImage(image,gids)
+      val realImage = getRealImage(name,image,gids)
       println(s" realImage: ${realImage}")
 
       if (isNeedBuildLocally(realImage)) {
         println(s"need rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
-        buildDependsProjects(context, mvnProfile)
+        buildDependsProjects(context, mvnProfile,gids)
       }
 
       smake(context, gids, mvnProfile)
@@ -369,12 +369,12 @@ case class Service(name: String, projectName: String, gitURL: String,
       println(s"$projectName rebuild begin")
 
       val beginTimeInMills = System.currentTimeMillis()
-      val realImage = getRealImage(image,gids)
+      val realImage = getRealImage(name,image,gids)
       println(s" realImage: ${realImage}")
 
       if (npmFolder.isDefined || isNeedBuildLocally(realImage)) {
         println(s"need rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
-        buildDependsProjects(context, mvnProfile)
+        buildDependsProjects(context, mvnProfile,gids)
       }
       sclean(context)
       smake(context, gids, mvnProfile)
@@ -444,13 +444,13 @@ case class Service(name: String, projectName: String, gitURL: String,
     needBuildLocally
   }
 
-  private def buildDependsProjects(context: Context, mvnProfile: String): Unit = {
+  private def buildDependsProjects(context: Context, mvnProfile: String,gids: Map[String, String]): Unit = {
     buildDepends.filterNot { buildDependService =>
       context.handled.contains(buildDependService.name)
     }.foreach { buildDependService =>
       println(s"${buildDependService.projectName} make begin")
       val _projectPath = Path(buildDependService.projectName, Path(context.workspace))
-      val dependencyProjectImage = s"${buildDependService.image}:${getGitCommitId(_projectPath)}"
+      val dependencyProjectImage = getRealImage(buildDependService.name,buildDependService.image,gids)
       println(s" project ${buildDependService.projectName} image is: ${dependencyProjectImage}")
       //1. 如果依赖的镜像不存在，则认为需要重新构建
       if (isNeedBuildLocally(dependencyProjectImage)) {
@@ -472,7 +472,7 @@ case class Service(name: String, projectName: String, gitURL: String,
   }
 
 
-  private def getRealImage(image: String, gids: Map[String, String]): String = {
+  private def getRealImage(serviceName: String, image: String, gids: Map[String, String]): String = {
     // check if images has been make
     // two forms of images:
     // 1. image:${git.branch}-${xx_gid}  for biz projects which will be change frequently
@@ -481,7 +481,7 @@ case class Service(name: String, projectName: String, gitURL: String,
     """(.*):\$\{.*\}""".r
     try {
       val imagePattern(_imageName) = image
-      s"${_imageName}:${gids(name.replace('-', '_'))}"
+      s"${_imageName}:${gids(serviceName.replace('-', '_'))}"
     } catch {
       case ex: Throwable =>
         image
