@@ -2,7 +2,6 @@ package compose
 
 import ammonite.ops._
 import org.yaml.snakeyaml.Yaml
-
 import Utils._
 
 import scala.collection.JavaConverters._
@@ -40,13 +39,14 @@ class Context {
   }
 
   def loadConfiguration(ymlFiles: Seq[Path]): Context = {
+    def getLabels(service: collection.mutable.Map[String, Any]): Map[String, String]  = service("labels").asInstanceOf[java.util.List[String]].asScala.map { label =>
+      val pos = label.indexOf('=')
+      (label.substring(0, pos) -> label.substring(pos + 1))
+    }.toMap
 
-    def buildService(name: String, service: collection.mutable.Map[String, Any]): Service = {
+    def buildService(name: String, service: collection.mutable.Map[String, Any], images: Map[String, String]): Service = {
 
-      val labels: Map[String, String] = service("labels").asInstanceOf[java.util.List[String]].asScala.map { label =>
-        val pos = label.indexOf('=')
-        (label.substring(0, pos) -> label.substring(pos + 1))
-      }.toMap
+      val labels: Map[String, String] = getLabels(service)
 
       // 是否是dockerHub上的共有镜像, 例如redis
       val publicImage = labels.getOrElse("project.extra", "").contains("public-image")
@@ -64,7 +64,7 @@ class Context {
           relatedSources = Nil,
           depends = Nil,
           buildDepends = Nil,
-          image = "",
+          image = images(name),
           gitSubmoduleFolder = None,
           npmFolder = None,
           publicImage = false
@@ -77,6 +77,7 @@ class Context {
         .sortBy(i => (i._1.substring(i._1.lastIndexOf(".") + 1)).toInt)
         .map { case (_, value) =>
           val Pattern(gitURL, name, branch) = value
+          val imageName = if (images.contains(name)) images(name) else ""
           Service(
             name = name,
             projectName = name,
@@ -85,7 +86,7 @@ class Context {
             relatedSources = Nil,
             depends = Nil,
             buildDepends = Nil,
-            image = "",
+            image = imageName,
             gitSubmoduleFolder = None,
             npmFolder = None,
             publicImage = false
@@ -106,6 +107,28 @@ class Context {
         publicImage = publicImage)
     }
 
+    def getImages(ymlFiles: Seq[Path]) = {
+      ymlFiles.flatMap{ (ymlFile: Path) => {
+        val content: String = read(ymlFile, "utf-8")
+
+        val yaml = new Yaml().load(content).asInstanceOf[java.util.Map[String, Any]].asScala
+
+        val servicesYaml = yaml("services").asInstanceOf[java.util.Map[String, Any]].asScala
+        val images: mutable.Map[String, String] = servicesYaml.flatMap{case (name, serviceNode) => {
+          val service =  serviceNode.asInstanceOf[java.util.Map[String, Any]].asScala
+          val labels = getLabels(service)
+          val realProjectName = labels.filterKeys(_.startsWith("project.source")).toList.filterNot(i => i._2 == null || i._2.isEmpty).map{case (_, value) => {
+            val Pattern = """(.*/(.*?)\.git)@@(.*)""".r
+            val Pattern(_, name, _) = value
+            name
+          }}
+          realProjectName.map(name => name -> service("image").toString)
+        }}
+        images
+      }}.toMap
+    }
+
+    val images: Map[String, String] =  getImages(ymlFiles)
 
     ymlFiles.foreach { (ymlFile: Path) =>
       val content: String = read(ymlFile, "utf-8")
@@ -113,8 +136,12 @@ class Context {
       val yaml = new Yaml().load(content).asInstanceOf[java.util.Map[String, Any]].asScala
 
       val servicesYaml = yaml("services").asInstanceOf[java.util.Map[String, Any]].asScala
+
       val services = servicesYaml.map {
-        case (name, serviceNode) => buildService(name, serviceNode.asInstanceOf[java.util.Map[String, Any]].asScala)
+        case (name, serviceNode) => {
+          buildService(name, serviceNode.asInstanceOf[java.util.Map[String, Any]].asScala, images)
+        }
+
       }.toList
 
       this.services ++= services.map(service => (service.name, service)).toMap
@@ -127,9 +154,6 @@ class Context {
     }
 
     this.sortedServices = sort(this.services)
-    //    this.sortedServices.foreach { service =>
-    //      println(s"${service.name} => ${service.depends}")
-    //    }
 
     this
   }
