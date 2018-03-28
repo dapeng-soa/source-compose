@@ -372,12 +372,23 @@ case class Service(name: String, projectName: String, gitURL: String,
       val realImage = getRealImage(gids)
       println(s" realImage: ${realImage}")
 
+      val dependencyProjectBuildBeginTime = System.currentTimeMillis()
       if (npmFolder.isDefined || isNeedBuildLocally(realImage)) {
         println(s"need rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
         buildDependsProjects(context, mvnProfile)
       }
+      val dependencyProjectBuildEndTime = System.currentTimeMillis()
+      println(s" dependency build totalTime: ${dependencyProjectBuildEndTime - dependencyProjectBuildBeginTime}")
+
+      val projectCleanBeginTime = System.currentTimeMillis()
       sclean(context)
+      val projectCleanEndTime = System.currentTimeMillis()
+
+      val makeBeginTime = System.currentTimeMillis()
       smake(context, gids, mvnProfile)
+      val makeEndTime = System.currentTimeMillis()
+
+      println(s" $projectName rebuild cleanTime: ${projectCleanEndTime - projectCleanBeginTime},  makeTime: ${makeEndTime - makeBeginTime}")
       println(s"$projectName rebuild end, cost:${(System.currentTimeMillis() - beginTimeInMills) / 1000}")
     }
   }
@@ -449,17 +460,23 @@ case class Service(name: String, projectName: String, gitURL: String,
       context.handled.contains(buildDependService.name)
     }.foreach { buildDependService =>
       println(s"${buildDependService.projectName} make begin")
+      val cleanBeginTime = System.currentTimeMillis()
       val _projectPath = Path(buildDependService.projectName, Path(context.workspace))
       println(s" start cleaning depend project: ${buildDependService.projectName}")
       sclean(_projectPath)
       println(s" end cleaning depend project: ${buildDependService.projectName}")
+      val cleanEndTime = System.currentTimeMillis()
 
+      val buildBeginTime = System.currentTimeMillis()
       if (isMvnCommand(_projectPath)) {
         mvnInstall(_projectPath, mvnProfile)
 
       } else if (isSbtCommand(_projectPath)) {
         sbtPackage(_projectPath) //依赖项目一般都是打包，不会打镜像
       }
+      val buildEndTime = System.currentTimeMillis()
+
+      println(s" dependencyProject: ${buildDependService.projectName} build cost time: cleanTime: ${cleanEndTime - cleanBeginTime}, buildTime: ${buildEndTime - buildBeginTime}")
       context.handled += buildDependService.name
     }
   }
