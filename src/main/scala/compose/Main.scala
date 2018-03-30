@@ -37,6 +37,8 @@ object Main {
 
   val gitIdIni = Symbol(".local.gitid.ini")
 
+  val lastGitIdIni = Symbol(".local.last.gitid.ini")
+
   val versionIni = Symbol(".version.ini")
 
   val reportPath: Path = cwd / "report"

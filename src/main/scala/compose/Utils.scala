@@ -1,11 +1,50 @@
 package compose
 
+import java.io.File
+
 import ammonite.ops._
 
 /**
   * Created by Ever on 16/8/12.
   */
 object Utils {
+
+  def updateLastGitidIni(projectName: String, serviceName: String) = {
+    val file = new File((cwd / Main.lastGitIdIni.name).toString)
+    if (!file.exists()) {
+      file.createNewFile()
+      println(s" .local.last.gitid.ini file does not exists. created new File..")
+    }
+
+    val properties = Main.loadPropertiesByIni(Main.lastGitIdIni.name)
+    println(s"updating built project gitId: ${properties}")
+
+    if (!properties.keySet.contains(serviceName)) {
+      updateGid(projectName, serviceName, Path(workspace))
+    }
+  }
+
+  val workspace = {
+    val prop = System.getProperty("COMPOSE_WORKSPACE")
+    if (prop != null) prop
+    else {
+      val env = System.getenv("COMPOSE_WORKSPACE")
+      if (env != null) env
+      else throw new RuntimeException("please specify COMPOSE_WORKSPACE via -D or environment.")
+    }
+  }
+
+  def updateGid(projectName: String, serviceName: String, path: Path): Unit = {
+      val projectPath: Path = Path(projectName, path)
+
+      val commitId = getGitCommitId(projectPath)
+
+      write.append(cwd / Main.lastGitIdIni.name, s"${serviceName.replace('-', '_')}=$commitId\n")
+
+      println(s"update $path properties: $serviceName=$commitId")
+  }
+
+
 
   /**
     * get path to the head of current "non detach branch"

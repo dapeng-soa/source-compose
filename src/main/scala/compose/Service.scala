@@ -1,5 +1,7 @@
 package compose
 
+import java.io.File
+
 import ammonite.ops._
 import Utils._
 
@@ -388,6 +390,9 @@ case class Service(name: String, projectName: String, gitURL: String,
       smake(context, gids, mvnProfile)
       val makeEndTime = System.currentTimeMillis()
 
+      //update .local.last.gitid.ini
+      updateLastGitidIni(projectName,name)
+
       println(s" $projectName rebuild cleanTime: ${projectCleanEndTime - projectCleanBeginTime},  makeTime: ${makeEndTime - makeBeginTime}")
       println(s"$projectName rebuild end, cost:${(System.currentTimeMillis() - beginTimeInMills) / 1000}")
     }
@@ -460,23 +465,51 @@ case class Service(name: String, projectName: String, gitURL: String,
       context.handled.contains(buildDependService.name)
     }.foreach { buildDependService =>
       println(s"${buildDependService.projectName} make begin")
-      val cleanBeginTime = System.currentTimeMillis()
-      val _projectPath = Path(buildDependService.projectName, Path(context.workspace))
-      println(s" start cleaning depend project: ${buildDependService.projectName}")
-      sclean(_projectPath)
-      println(s" end cleaning depend project: ${buildDependService.projectName}")
-      val cleanEndTime = System.currentTimeMillis()
 
-      val buildBeginTime = System.currentTimeMillis()
-      if (isMvnCommand(_projectPath)) {
-        mvnInstall(_projectPath, mvnProfile)
+      val lastGitIdProperties = Main.loadPropertiesByIni(Main.lastGitIdIni.name)
+      val currentGitIdProperties = Main.loadPropertiesByIni(Main.gitIdIni.name)
 
-      } else if (isSbtCommand(_projectPath)) {
-        sbtPackage(_projectPath) //依赖项目一般都是打包，不会打镜像
+      //构建前判断gitid是否一致
+      val file = new File((cwd / Main.lastGitIdIni.name).toString)
+      val needRebuild = if (file.exists()) {
+
+        if (lastGitIdProperties.keySet.contains(buildDependService.name)) {
+          val lastgitId = lastGitIdProperties.get(buildDependService.name)
+          val currentGitId = currentGitIdProperties.get(buildDependService.name)
+
+          println(s" lastGitId: ${lastgitId}, currentGitId: ${currentGitId}")
+
+          if (lastgitId.equals(currentGitId)) false else true
+        } else true
+      } else true
+
+      println(s" lastGitIdProperties: ${lastGitIdProperties}")
+      println("-------------------------------------------------")
+      println(s" currentGitIdProperties: ${currentGitIdProperties}")
+
+      if (needRebuild) {
+        val cleanBeginTime = System.currentTimeMillis()
+        val _projectPath = Path(buildDependService.projectName, Path(context.workspace))
+        println(s" start cleaning depend project: ${buildDependService.projectName}")
+        sclean(_projectPath)
+        println(s" end cleaning depend project: ${buildDependService.projectName}")
+        val cleanEndTime = System.currentTimeMillis()
+
+        val buildBeginTime = System.currentTimeMillis()
+        if (isMvnCommand(_projectPath)) {
+          mvnInstall(_projectPath, mvnProfile)
+
+        } else if (isSbtCommand(_projectPath)) {
+          sbtPackage(_projectPath) //依赖项目一般都是打包，不会打镜像
+        }
+        val buildEndTime = System.currentTimeMillis()
+
+        println(s" dependencyProject: ${buildDependService.projectName} build cost time: cleanTime: ${cleanEndTime - cleanBeginTime}, buildTime: ${buildEndTime - buildBeginTime}")
+
+        updateLastGitidIni(buildDependService.projectName,buildDependService.name)
       }
-      val buildEndTime = System.currentTimeMillis()
 
-      println(s" dependencyProject: ${buildDependService.projectName} build cost time: cleanTime: ${cleanEndTime - cleanBeginTime}, buildTime: ${buildEndTime - buildBeginTime}")
+
       context.handled += buildDependService.name
     }
   }
