@@ -25,7 +25,7 @@ case class Service(name: String, projectName: String, gitURL: String,
                    gitBranch: String, relatedSources: List[Service],
                    depends: List[String], buildDepends: List[Service],
                    image: String, gitSubmoduleFolder: Option[String],
-                   npmFolder: Option[String], publicImage: Boolean) {
+                   npmFolder: Option[String], publicImage: Boolean, buildOperation: String) {
   /**
     * 把当前分支的commitId写入.local.gitid.ini
     *
@@ -466,30 +466,39 @@ case class Service(name: String, projectName: String, gitURL: String,
     }.foreach { buildDependService =>
       println(s"${buildDependService.projectName} make begin")
 
-      val lastGitIdProperties = Main.loadPropertiesByIni(Main.lastGitIdIni.name)
-      val currentGitIdProperties = Main.loadPropertiesByIni(Main.gitIdIni.name)
-
+      val lastGitIdProperties = Main.loadPropertiesByIni(Main.buildCacheIni.name)
       //构建前判断gitid是否一致
-      val file = new File((cwd / Main.lastGitIdIni.name).toString)
+      val file = new File((cwd / Main.buildCacheIni.name).toString)
       val needRebuild = if (file.exists()) {
 
         if (lastGitIdProperties.keySet.contains(buildDependService.name)) {
           val lastgitId = lastGitIdProperties.get(buildDependService.name)
-          val currentGitId = currentGitIdProperties.get(buildDependService.name)
 
-          println(s" lastGitId: ${lastgitId}, currentGitId: ${currentGitId}")
+          val dependProjectPath = Path(buildDependService.projectName, Path(context.workspace))
+          val projectCommmitId = getGitCommitId(dependProjectPath)
 
-          if (lastgitId.equals(currentGitId)) false else true
+          println(s" lastGitId: ${lastgitId}, buildCacheGitId: ${projectCommmitId}")
+
+          if (lastgitId.isDefined && lastgitId.get.equals(projectCommmitId)) false else true
         } else true
       } else true
 
       println(s" lastGitIdProperties: ${lastGitIdProperties}")
       println("-------------------------------------------------")
-      println(s" currentGitIdProperties: ${currentGitIdProperties}")
 
       if (needRebuild) {
-        val cleanBeginTime = System.currentTimeMillis()
+
+        println(s" build specific operation: ${buildDependService.buildOperation}")
         val _projectPath = Path(buildDependService.projectName, Path(context.workspace))
+
+        if (! buildDependService.buildOperation.isEmpty) {
+          //%.execute(buildDependService.buildOperation)
+          val buildOption = buildDependService.buildOperation
+
+          %.execute(_projectPath, Command(buildOption.split(" ").toVector,Map.empty,null))
+        }
+        val cleanBeginTime = System.currentTimeMillis()
+
         println(s" start cleaning depend project: ${buildDependService.projectName}")
         sclean(_projectPath)
         println(s" end cleaning depend project: ${buildDependService.projectName}")

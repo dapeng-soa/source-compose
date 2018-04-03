@@ -1,11 +1,10 @@
 package compose
 
-import java.io.FileInputStream
+import java.io.{File, FileInputStream}
 import java.text.SimpleDateFormat
 import java.util.{Date, Properties}
 
 import compose.Utils._
-
 import ammonite.ops._
 
 import scala.collection.JavaConverters
@@ -37,7 +36,7 @@ object Main {
 
   val gitIdIni = Symbol(".local.gitid.ini")
 
-  val lastGitIdIni = Symbol(".local.last.gitid.ini")
+  val buildCacheIni = Symbol(".build-cache.ini")
 
   val versionIni = Symbol(".version.ini")
 
@@ -53,6 +52,11 @@ object Main {
 
     val ymlFile = cwd / "dc-all.yml"
 
+    val file = new File((cwd / Main.buildCacheIni.name).toString)
+    if (!file.exists()) {
+      file.createNewFile()
+      println(s" .build-cache.ini file does not exists. created new File..")
+    }
 
     val context = new Context().loadConfiguration(Array(ymlFile))
     val supportedOption = Array("-X", "-force", "-f", "-P", "-skipRemoteCheck")
@@ -106,6 +110,7 @@ object Main {
       context.services(service).spull(context)
       println()
     }
+
 
     todos.flatMap(context.services(_).relatedSources).toSet[Service].foreach { service =>
       service.spull(context)

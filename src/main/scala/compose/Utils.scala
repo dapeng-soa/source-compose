@@ -10,13 +10,8 @@ import ammonite.ops._
 object Utils {
 
   def updateLastGitidIni(projectName: String, serviceName: String) = {
-    val file = new File((cwd / Main.lastGitIdIni.name).toString)
-    if (!file.exists()) {
-      file.createNewFile()
-      println(s" .local.last.gitid.ini file does not exists. created new File..")
-    }
 
-    val properties = Main.loadPropertiesByIni(Main.lastGitIdIni.name)
+    val properties = Main.loadPropertiesByIni(Main.buildCacheIni.name)
     println(s"updating built project gitId: ${properties}")
 
     if (!properties.keySet.contains(serviceName)) {
@@ -39,7 +34,7 @@ object Utils {
 
       val commitId = getGitCommitId(projectPath)
 
-      write.append(cwd / Main.lastGitIdIni.name, s"${serviceName.replace('-', '_')}=$commitId\n")
+      write.append(cwd / Main.buildCacheIni.name, s"${serviceName.replace('-', '_')}=$commitId\n")
 
       println(s"update $path properties: $serviceName=$commitId")
   }

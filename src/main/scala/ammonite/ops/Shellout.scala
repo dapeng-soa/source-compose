@@ -98,13 +98,17 @@ case class Command[T](cmd: Vector[String],
                       execute: (Path, Command[_]) => T) extends Dynamic {
   def extend(cmd2: Traversable[String], envArgs2: Traversable[(String, String)]) =
     new Command(cmd ++ cmd2, envArgs ++ envArgs2, execute)
+
   def selectDynamic(name: String)(implicit wd: Path) = execute(wd, extend(Vector(name), Map()))
+
   def opArg(op: String) = if (op == "apply") Nil else Vector(op)
 
   def applyDynamic(op: String)(args: Shellable*)(implicit wd: Path): T = {
 
     execute(wd, this.extend(opArg(op) ++ args.flatMap(_.s), Map()))
   }
+
+
   def applyDynamicNamed(op: String)
                        (args: (String, Shellable)*)
                        (implicit wd: Path): T = {
