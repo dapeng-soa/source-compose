@@ -19,7 +19,7 @@ object Main {
   /**
     * if set to true, all output would be redirect to console.
     */
-  var debugMode = false
+  var debugMode = true
 
   /**
     * if set to true, docker images won't be pull from remote registry
