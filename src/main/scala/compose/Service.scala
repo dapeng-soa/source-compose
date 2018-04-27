@@ -233,6 +233,7 @@ case class Service(name: String, projectName: String, gitURL: String,
           intercept(%%.git("branch", "-d", gitBranch)(projectPath))
           exitWhileFailed(name)(%%.git("checkout", gitBranch)(projectPath))
           if (isGitSubmodule) {
+            exitWhileFailed(name)(%%.git("config", "-f", ".gitmodules", "submodule.src/main/webapp/eywa-web.branch", gitBranch)(projectPath))
             exitWhileFailed(name)(%%.git("submodule", "update", "--remote")(projectPath))
           }
         }
@@ -407,9 +408,9 @@ case class Service(name: String, projectName: String, gitURL: String,
 
     val mvnOpts: List[String] = if ("-Pproduction".equals(mvnProfile)
       && projectPath.last.toLowerCase.contains("api")) {
-      List("deploy", "-Dmaven.test.skip=true", "-e", mvnProfile)
+      List("-q", "deploy", "-Dmaven.test.skip=true", "-e", mvnProfile)
     } else {
-      List("install", "-Dmaven.test.skip=true") ::: (if (mvnProfile.equals("")) List("-Pproduction") else List(mvnProfile))
+      List("-q", "install", "-Dmaven.test.skip=true") ::: (if (mvnProfile.equals("")) List("-Pproduction") else List(mvnProfile))
     }
 
     println(s" Mvn install profile: ${mvnOpts}")
@@ -421,7 +422,7 @@ case class Service(name: String, projectName: String, gitURL: String,
   }
 
   private def sbtDocker(projectPath: Path) = {
-    val sbtOpts = List("compile", "publishLocal", "docker")
+    val sbtOpts = List("compile", "publishLocal", "docker", "-no-colors")
     val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpts)(projectPath) else %.`sbt`(sbtOpts)(projectPath)
 
     if (buildResult != 0) System.exit(buildResult)
