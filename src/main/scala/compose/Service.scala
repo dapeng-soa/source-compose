@@ -341,11 +341,11 @@ case class Service(name: String, projectName: String, gitURL: String,
   def sclean(projectPath: Path) = {
     if (!publicImage) {
       if (isMvnCommand(projectPath)) {
-        if (Main.isWinOs) exitWhileFailed(name)(%%.`mvn.bat`("clean")(projectPath))
-        else exitWhileFailed(name)(%%.mvn("clean")(projectPath))
+        if (Main.isWinOs) exitWhileFailed(name)(%%.`mvn.bat`("clean", "-q")(projectPath))
+        else exitWhileFailed(name)(%%.mvn("clean", "-q")(projectPath))
       } else if (isSbtCommand(projectPath)) {
-        if (Main.isWinOs) exitWhileFailed(name)(%%.`sbt.bat`("clean")(projectPath))
-        else exitWhileFailed(name)(%%.sbt("clean")(projectPath))
+        if (Main.isWinOs) exitWhileFailed(name)(%%.`sbt.bat`("clean", "-no-colors")(projectPath))
+        else exitWhileFailed(name)(%%.sbt("clean", "-no-colors")(projectPath))
       }
     }
   }
@@ -435,7 +435,7 @@ case class Service(name: String, projectName: String, gitURL: String,
     * @param projectPath
     */
   private def sbtPackage(projectPath: Path) = {
-    val sbtOpts = List("api/compile", "api/package", "api/publishLocal", "api/publishM2")
+    val sbtOpts = List("api/compile", "api/package", "api/publishLocal", "api/publishM2", "-no-colors")
 
     val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpts)(projectPath) else %.`sbt`(sbtOpts)(projectPath)
     if (buildResult != 0) System.exit(buildResult)
