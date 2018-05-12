@@ -9,16 +9,6 @@ import ammonite.ops._
   */
 object Utils {
 
-  def updateLastGitidIni(projectName: String, serviceName: String) = {
-
-    val properties = Main.loadPropertiesByIni(Main.buildCacheIni.name)
-    println(s"updating built project gitId: ${properties}")
-
-    if (!properties.keySet.contains(serviceName)) {
-      updateGid(projectName, serviceName, Path(workspace))
-    }
-  }
-
   val workspace = {
     val prop = System.getProperty("COMPOSE_WORKSPACE")
     if (prop != null) prop
@@ -29,14 +19,16 @@ object Utils {
     }
   }
 
-  def updateGid(projectName: String, serviceName: String, path: Path): Unit = {
-      val projectPath: Path = Path(projectName, path)
+  def updateBuildCacheGids(newCacheGids: Map[String,String]): Unit = {
 
-      val commitId = getGitCommitId(projectPath)
+      rm ! cwd / Main.buildCacheIni.name
 
-      write.append(cwd / Main.buildCacheIni.name, s"${serviceName.replace('-', '_')}=$commitId\n")
+      newCacheGids.foreach( i => {
+        write.append(cwd / Main.buildCacheIni.name, s"${i._1.replace('-', '_')}=${i._2}\n")
 
-      println(s"update $path properties: $serviceName=$commitId")
+        println(s"update buildCacheIni properties: ${i._1}=${i._2}")
+      })
+
   }
 
 

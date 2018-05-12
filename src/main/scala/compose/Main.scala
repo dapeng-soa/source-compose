@@ -19,7 +19,7 @@ object Main {
   /**
     * if set to true, all output would be redirect to console.
     */
-  var debugMode = true
+  var debugMode = false
 
   /**
     * if set to true, docker images won't be pull from remote registry
@@ -141,9 +141,10 @@ object Main {
   def sbuild(context: Context, services: Seq[String], mvnProfile: String): Unit = {
     val beginTimeInMills = System.currentTimeMillis()
     val gids = loadPropertiesByIni(gitIdIni.name)
+    val cacheGids = loadPropertiesByIni(buildCacheIni.name)
     val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
     todos.diff(ignoreServices).foreach { service =>
-      context.services(service).sbuild(context, gids, mvnProfile)
+      context.services(service).sbuild(context, gids, cacheGids, mvnProfile)
       println()
     }
 
@@ -153,17 +154,26 @@ object Main {
   def srebuild(context: Context, services: Seq[String], mvnProfile: String): Unit = {
     val beginTimeInMills = System.currentTimeMillis()
     val gids = loadPropertiesByIni(gitIdIni.name)
-    println(s" current rebuild Services: ${services}")
-    println(s" current ignoreServices: ${ignoreServices}")
-    val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
-    println(s" filtered sorted toBuild services: ${todos}")
+    val cacheGids = loadPropertiesByIni(buildCacheIni.name)
 
+    var newCacheGids = collection.mutable.HashMap[String,String]()
+    newCacheGids ++= cacheGids
+
+    println(s"current rebuild Services: ${services}")
+    println(s"current ignoreServices: ${ignoreServices}")
+    val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
+    println(s"filtered sorted toBuild services: ${todos}")
+    println("")
     todos.diff(ignoreServices).foreach { service =>
-      context.services(service).srebuild(context, gids, mvnProfile)
-      println()
+      val tempGids = context.services(service).srebuild(context, gids, cacheGids, mvnProfile)
+      newCacheGids ++= tempGids
     }
 
-    println(s"srebuild done. cost:${(System.currentTimeMillis() - beginTimeInMills) / 1000}")
+    //update the final buildCacheIni
+    updateBuildCacheGids(newCacheGids.toMap)
+
+    println(s"SERVICE_CALCULATE newCacheGids: ${newCacheGids}")
+    println(s"SERVICE_CALCULATE srebuild done. cost:${(System.currentTimeMillis() - beginTimeInMills)} ms, toSeconds: ${(System.currentTimeMillis() - beginTimeInMills) / 1000} s")
   }
 
   def slist(context: Context): Unit = {

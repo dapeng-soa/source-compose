@@ -280,11 +280,8 @@ case class Service(name: String, projectName: String, gitURL: String,
 
       val projectPath = Path(projectName, Path(context.workspace))
 
-      // support maven project only
-      val realImage = getRealImage(gids)
       if (isMvnCommand(projectPath) || isSbtCommand(projectPath)) {
-        if (gitSubmoduleFolder.isDefined || isNeedBuildLocally(realImage)) {
-          println(s"${realImage} not found, now begin to build one, please wait...")
+        if (gitSubmoduleFolder.isDefined) {
           println(s" build handled services: ${context.handled}")
 
           npmFolder.foreach(_npmFolder => {
@@ -301,8 +298,8 @@ case class Service(name: String, projectName: String, gitURL: String,
           if (isMvnCommand(projectPath)) mvnInstall(projectPath, mvnProfile)
           else sbtDocker(projectPath)
 
-        } else println(s"$realImage exist")
-      } else println(s"$realImage exist")
+        }
+      }
 
       println(s"$projectName make done")
     }
@@ -350,7 +347,7 @@ case class Service(name: String, projectName: String, gitURL: String,
     }
   }
 
-  def sbuild(context: Context, gids: Map[String, String], mvnProfile: String): Unit = {
+  def sbuild(context: Context, gids: Map[String, String], cacheGids:Map[String, String], mvnProfile: String): Unit = {
     if (!publicImage) {
       println(s"$projectName build begin")
       val beginTimeInMills = System.currentTimeMillis()
@@ -359,7 +356,7 @@ case class Service(name: String, projectName: String, gitURL: String,
 
       if (isNeedBuildLocally(realImage)) {
         println(s"need rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
-        buildDependsProjects(context, mvnProfile)
+        buildDependsProjects(context, mvnProfile, cacheGids)
       }
 
       smake(context, gids, mvnProfile)
@@ -367,35 +364,57 @@ case class Service(name: String, projectName: String, gitURL: String,
     }
   }
 
-  def srebuild(context: Context, gids: Map[String, String], mvnProfile: String): Unit = {
+  def srebuild(context: Context, gids: Map[String, String], cacheGids: Map[String, String] , mvnProfile: String): Map[String, String] = {
     if (!publicImage) {
-      println(s"$projectName rebuild begin")
+      println(s"SERVICE_CALCULATE $projectName rebuild begin")
 
       val beginTimeInMills = System.currentTimeMillis()
       val realImage = getRealImage(gids)
-      println(s" realImage: ${realImage}")
+      //println(s" realImage: ${realImage}")
 
       val dependencyProjectBuildBeginTime = System.currentTimeMillis()
-      if (npmFolder.isDefined || isNeedBuildLocally(realImage)) {
-        println(s"need rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
-        buildDependsProjects(context, mvnProfile)
+      val (newCacheGids, dependencyBuildTimes): (Map[String, String], List[(String, Long)]) = if (npmFolder.isDefined || isNeedBuildLocally(realImage)) {
+        println(s"SERVICE_CALCULATE Rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
+
+        buildDependsProjects(context, mvnProfile, cacheGids)
+      } else {
+        (Map[String, String](), List[(String, Long)]())
       }
       val dependencyProjectBuildEndTime = System.currentTimeMillis()
-      println(s" dependency build totalTime: ${dependencyProjectBuildEndTime - dependencyProjectBuildBeginTime}")
 
-      val projectCleanBeginTime = System.currentTimeMillis()
-      sclean(context)
-      val projectCleanEndTime = System.currentTimeMillis()
+      val dependProjectPath = Path(projectName, Path(context.workspace))
+      val projectCommmitId = getGitCommitId(dependProjectPath)
+      val cacheGid = newCacheGids.get(name)
 
-      val makeBeginTime = System.currentTimeMillis()
-      smake(context, gids, mvnProfile)
-      val makeEndTime = System.currentTimeMillis()
+      val (projectCleanBeginTime, projectCleanEndTime, makeBeginTime,makeEndTime) = if (!cacheGid.isDefined || !cacheGid.get.equals(projectCommmitId)) {
+        val projectCleanBeginTime = System.currentTimeMillis()
+        sclean(context)
+        val projectCleanEndTime = System.currentTimeMillis()
 
-      //update .local.last.gitid.ini
-      updateLastGitidIni(projectName,name)
+        val makeBeginTime = System.currentTimeMillis()
+        smake(context, gids, mvnProfile)
+        val makeEndTime = System.currentTimeMillis()
 
-      println(s" $projectName rebuild cleanTime: ${projectCleanEndTime - projectCleanBeginTime},  makeTime: ${makeEndTime - makeBeginTime}")
-      println(s"$projectName rebuild end, cost:${(System.currentTimeMillis() - beginTimeInMills) / 1000}")
+        (projectCleanBeginTime, projectCleanEndTime, makeBeginTime,makeEndTime)
+      } else {
+        (0L,0L,0L,0L)
+      }
+
+      //update .build.cache.ini
+      val projectPath: Path = Path(projectName, Path(workspace))
+      val commitId = getGitCommitId(projectPath)
+
+      dependencyBuildTimes.foreach(i => println(s"SERVICE_CALCULATE ${i._1} build time: ${i._2} ms, toSeconds: ${i._2 / 1000} s"))
+
+      println(s"SERVICE_CALCULATE dependency build totalTime: ${dependencyProjectBuildEndTime - dependencyProjectBuildBeginTime} ms, toSeconds: ${(dependencyProjectBuildEndTime - dependencyProjectBuildBeginTime) / 1000} s")
+      println(s"SERVICE_CALCULATE $projectName rebuild cleanTime: ${projectCleanEndTime - projectCleanBeginTime} ms,  makeTime: ${makeEndTime - makeBeginTime} ms")
+      println(s"SERVICE_CALCULATE $projectName rebuild end, cost:${(System.currentTimeMillis() - beginTimeInMills)} ms, toSeconds: ${(System.currentTimeMillis() - beginTimeInMills) / 1000} s")
+      println(s"SERVICE_CALCULATE ")
+
+      val updatedGids = cacheGids ++ newCacheGids ++ Map(name -> commitId)
+      updatedGids
+    } else {
+      cacheGids
     }
   }
 
@@ -461,67 +480,46 @@ case class Service(name: String, projectName: String, gitURL: String,
     needBuildLocally
   }
 
-  private def buildDependsProjects(context: Context, mvnProfile: String): Unit = {
-    buildDepends.filterNot { buildDependService =>
+  private def buildDependsProjects(context: Context, mvnProfile: String, cacheGids: Map[String, String]): (Map[String, String], List[(String, Long)]) = {
+
+    val newCacheGids = collection.mutable.HashMap[String,String]()
+    newCacheGids ++= cacheGids
+
+    val denpendencyBuildTimes = buildDepends.filterNot { buildDependService =>
       context.handled.contains(buildDependService.name)
-    }.foreach { buildDependService =>
+    }.map { buildDependService =>
       println(s"${buildDependService.projectName} make begin")
+      val buildBeginTime = System.currentTimeMillis()
 
-      val lastGitIdProperties = Main.loadPropertiesByIni(Main.buildCacheIni.name)
-      //构建前判断gitid是否一致
-      val file = new File((cwd / Main.buildCacheIni.name).toString)
-      val needRebuild = if (file.exists()) {
+      val dependProjectPath = Path(buildDependService.projectName, Path(context.workspace))
+      val projectCommmitId = getGitCommitId(dependProjectPath)
+      val cacheGid = newCacheGids.get(buildDependService.name)
 
-        if (lastGitIdProperties.keySet.contains(buildDependService.name)) {
-          val lastgitId = lastGitIdProperties.get(buildDependService.name)
-
-          val dependProjectPath = Path(buildDependService.projectName, Path(context.workspace))
-          val projectCommmitId = getGitCommitId(dependProjectPath)
-
-          println(s" lastGitId: ${lastgitId}, buildCacheGitId: ${projectCommmitId}")
-
-          if (lastgitId.isDefined && lastgitId.get.equals(projectCommmitId)) false else true
-        } else true
-      } else true
-
-      println(s" lastGitIdProperties: ${lastGitIdProperties}")
-      println("-------------------------------------------------")
-
-      if (needRebuild) {
-
-        println(s" build specific operation: ${buildDependService.buildOperation}")
+      println(s"compare buildDependService.projectName: ${buildDependService.projectName}, buildDependService.name: ${buildDependService.name}  CommitIdByProjectName: ${projectCommmitId}, cacheGidByName: ${cacheGid}")
+      if (!cacheGid.isDefined || !cacheGid.get.equals(projectCommmitId)) {
+        println(s" SERVICE_CALCULATE need to rebuild dependency projectName: ${buildDependService.projectName}, buildDependService.name: ${buildDependService.name}")
         val _projectPath = Path(buildDependService.projectName, Path(context.workspace))
 
-        if (! buildDependService.buildOperation.isEmpty) {
-          //%.execute(buildDependService.buildOperation)
-          val buildOption = buildDependService.buildOperation
-
-          %.execute(_projectPath, Command(buildOption.split(" ").toVector,Map.empty,null))
-        }
-        val cleanBeginTime = System.currentTimeMillis()
-
-        println(s" start cleaning depend project: ${buildDependService.projectName}")
         sclean(_projectPath)
-        println(s" end cleaning depend project: ${buildDependService.projectName}")
-        val cleanEndTime = System.currentTimeMillis()
-
-        val buildBeginTime = System.currentTimeMillis()
         if (isMvnCommand(_projectPath)) {
           mvnInstall(_projectPath, mvnProfile)
-
         } else if (isSbtCommand(_projectPath)) {
           sbtPackage(_projectPath) //依赖项目一般都是打包，不会打镜像
         }
-        val buildEndTime = System.currentTimeMillis()
 
-        println(s" dependencyProject: ${buildDependService.projectName} build cost time: cleanTime: ${cleanEndTime - cleanBeginTime}, buildTime: ${buildEndTime - buildBeginTime}")
-
-        updateLastGitidIni(buildDependService.projectName,buildDependService.name)
+      } else {
+        println(s"SERVICE_CALCULATE no need to rebuild dependency projectName: ${buildDependService.projectName}, buildDependService.name: ${buildDependService.name}")
       }
+      val buildEndTime = System.currentTimeMillis()
 
+      newCacheGids.put(buildDependService.name, projectCommmitId)
 
       context.handled += buildDependService.name
+
+      (buildDependService.name, buildEndTime - buildBeginTime)
     }
+
+    (cacheGids, denpendencyBuildTimes)
   }
 
 
