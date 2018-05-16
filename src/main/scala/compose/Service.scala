@@ -280,8 +280,9 @@ case class Service(name: String, projectName: String, gitURL: String,
 
       val projectPath = Path(projectName, Path(context.workspace))
 
+      val realImage = getRealImage(gids)
       if (isMvnCommand(projectPath) || isSbtCommand(projectPath)) {
-        if (gitSubmoduleFolder.isDefined) {
+        if (gitSubmoduleFolder.isDefined || isNeedBuildLocally(realImage)) {
           println(s" build handled services: ${context.handled}")
 
           npmFolder.foreach(_npmFolder => {
