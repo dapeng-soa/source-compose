@@ -385,9 +385,11 @@ case class Service(name: String, projectName: String, gitURL: String,
 
       val dependProjectPath = Path(projectName, Path(context.workspace))
       val projectCommmitId = getGitCommitId(dependProjectPath)
-      val cacheGid = newCacheGids.get(name)
+      val cacheGid = (cacheGids ++ newCacheGids).get(name)
 
-      val (projectCleanBeginTime, projectCleanEndTime, makeBeginTime,makeEndTime) = if (!cacheGid.isDefined || !cacheGid.get.equals(projectCommmitId)) {
+      println(s"SERVICE_CALCULATE $projectName dependPath: $dependProjectPath projectCommitId: $projectCommmitId, name: $name cacheGid: $cacheGid")
+      val (projectCleanBeginTime, projectCleanEndTime, makeBeginTime,makeEndTime) =
+        if (gitSubmoduleFolder.isDefined || !cacheGid.isDefined || !cacheGid.get.equals(projectCommmitId)) {
         val projectCleanBeginTime = System.currentTimeMillis()
         sclean(context)
         val projectCleanEndTime = System.currentTimeMillis()
@@ -520,7 +522,7 @@ case class Service(name: String, projectName: String, gitURL: String,
       (buildDependService.name, buildEndTime - buildBeginTime)
     }
 
-    (cacheGids, denpendencyBuildTimes)
+    (newCacheGids.toMap, denpendencyBuildTimes)
   }
 
 
