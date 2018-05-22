@@ -61,33 +61,54 @@ object Main {
     val context = new Context().loadConfiguration(Array(ymlFile))
     val supportedOption = Array("-X", "-force", "-f", "-P", "-skipRemoteCheck")
 
-    //所有服务的分支,应该是跟scompose分支一致或者是master分支
-    assert(context.services.values.forall(service => (service.gitBranch == context.scomposeBranch) || (service.gitBranch == "master")),
-      s"Branch should be in (${context.scomposeBranch}, master)")
-    assert(context.services.values.flatMap(_.relatedSources).toSet[Service].forall(service => (service.gitBranch == context.scomposeBranch) || (service.gitBranch == "master")),
-      s"Branch should be in (${context.scomposeBranch}, master)")
 
     if (args.exists(_ == "-X")) Main.debugMode = true
     if (args.exists(arg => (arg == "-skipRemoteCheck")||(arg == "-force")||(arg == "-f"))) Main.skipRemoteCheck = true
     val mvnProfile = args.filter(_.startsWith("-P")).headOption.getOrElse("")
 
     args.diff(supportedOption).filter(!_.startsWith("-P")) match {
-      case Array("s-update-gid", services@_*) => supdateGid(context) // for develop only; get gid ; git push
-      case Array("s-diff", services@_*) => sdiff(context, services) // git diff between current branch and master
-      case Array("s-log", services@_*) => slog(context, services) // git log between gid of current branch and gid of master
+      case Array("s-update-gid", services@_*) =>
+        checkBranch(context)
+        supdateGid(context) // for develop only; get gid ; git push
+      case Array("s-diff", services@_*) =>
+        checkBranch(context)
+        sdiff(context, services) // git diff between current branch and master
+      case Array("s-log", services@_*) =>
+        checkBranch(context)
+        slog(context, services) // git log between gid of current branch and gid of master
       case Array("s-merge-by-gid", branches@_*) => // for production only. get gid; git diff/log by gid ; git merge branch to master;
+        checkBranch(context)
         assert(branches.size == 1, "must specifid a branch name")
         smergeById(context, branches(0))
-      case Array("s-push", services@_*) => spush(context, services) // git push
-      case Array("s-pull", services@_*) => spull(context, services) // git pull
-      case Array("s-pull-by-gid", services@_*) => spullById(context, services) // git pull commit
-      case Array("s-clean", services@_*) => sclean(context, services) // mvn clean
-      case Array("s-make", services@_*) => smake(context, services, mvnProfile) // mvn install -Dmaven.test.skip ; docker tag
-      case Array("s-docker-push", services@_*) => sdockerPush(context, services) // docker push
-      case Array("s-build", services@_*) => sbuild(context, services, mvnProfile) // s-make
-      case Array("s-rebuild", services@_*) => srebuild(context, services, mvnProfile) //
-      case Array("s-list", services@_*) => slist(context) //
+      case Array("s-push", services@_*) =>
+        checkBranch(context)
+        spush(context, services) // git push
+      case Array("s-pull", services@_*) =>
+        checkBranch(context)
+        spull(context, services) // git pull
+      case Array("s-pull-by-gid", services@_*) =>
+        checkBranch(context)
+        spullById(context, services) // git pull commit
+      case Array("s-clean", services@_*) =>
+        checkBranch(context)
+        sclean(context, services) // mvn clean
+      case Array("s-make", services@_*) =>
+        checkBranch(context)
+        smake(context, services, mvnProfile) // mvn install -Dmaven.test.skip ; docker tag
+      case Array("s-docker-push", services@_*) =>
+        checkBranch(context)
+        sdockerPush(context, services) // docker push
+      case Array("s-build", services@_*) =>
+        checkBranch(context)
+        sbuild(context, services, mvnProfile) // s-make
+      case Array("s-rebuild", services@_*) =>
+        checkBranch(context)
+        srebuild(context, services, mvnProfile) //
+      case Array("s-list", services@_*) =>
+        checkBranch(context)
+        slist(context) //
       case Array("s-rollback", branches@_*) =>
+        checkBranch(context)
         assert(branches.size == 1, "must specifid a branch name")
         srollback(context, branches(0))
       case Array("help", services@_*) => usage
@@ -96,6 +117,14 @@ object Main {
 
     }
 
+  }
+
+  def checkBranch(context: Context): Unit = {
+    //所有服务的分支,应该是跟scompose分支一致或者是master分支
+    assert(context.services.values.forall(service => (service.gitBranch == context.scomposeBranch) || (service.gitBranch == "master")),
+      s"Branch should be in (${context.scomposeBranch}, master)")
+    assert(context.services.values.flatMap(_.relatedSources).toSet[Service].forall(service => (service.gitBranch == context.scomposeBranch) || (service.gitBranch == "master")),
+      s"Branch should be in (${context.scomposeBranch}, master)")
   }
 
   /**

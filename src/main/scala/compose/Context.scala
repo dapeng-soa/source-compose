@@ -25,7 +25,7 @@ class Context {
   var handled: Set[String] = Set()
 
 
-  val workspace = {
+  lazy val workspace = {
     val prop = System.getProperty("COMPOSE_WORKSPACE")
     if (prop != null) prop
     else {
@@ -35,7 +35,7 @@ class Context {
     }
   }
 
-  val scomposeBranch = {
+  lazy val scomposeBranch = {
     getNonDetachGitBranch(cwd)
   }
 
