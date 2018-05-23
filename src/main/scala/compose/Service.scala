@@ -457,7 +457,7 @@ case class Service(name: String, projectName: String, gitURL: String,
     * @param projectPath
     */
   private def sbtPackage(projectPath: Path) = {
-    val sbtOpts = List("api/compile", "api/package", "api/publishLocal", "api/publishM2", "-no-colors")
+    val sbtOpts = List("api/compile", "api/package", "api/publish", "api/publishLocal", "api/publishM2", "-no-colors")
 
     val buildResult = if (Main.isWinOs) %.`sbt.bat`(sbtOpts)(projectPath) else %.`sbt`(sbtOpts)(projectPath)
     if (buildResult != 0) System.exit(buildResult)
