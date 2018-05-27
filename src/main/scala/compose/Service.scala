@@ -291,7 +291,7 @@ case class Service(name: String, projectName: String, gitURL: String,
 
             if (buildResult != 0) System.exit(buildResult)
 
-            val buildResult2 = %.npm("run", "build")(npmPath)
+            val buildResult2 = %.npm("run", "build:happy")(npmPath)
 
             if (buildResult2 != 0) System.exit(buildResult2)
           })
