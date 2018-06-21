@@ -476,7 +476,12 @@ case class Service(name: String, projectName: String, gitURL: String,
       if (!Main.skipRemoteCheck) {
         println(s"${realImage} not found locally, now check remote registry")
         val pullResult = intercept(%%.docker("pull", realImage)(cwd))
-        pullResult.exitCode != 0
+        if (pullResult.exitCode != 0) {
+          System.exit(pullResult.exitCode)
+          false
+        } else {
+          true
+        }
       } else true
     } else false
 

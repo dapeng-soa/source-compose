@@ -110,11 +110,17 @@ object Main {
       case Array("s-rollback", branches@_*) =>
         checkBranch(context)
         assert(branches.size == 1, "must specifid a branch name")
-        srollback(context, branches(0))
+        val resultCode = srollback(context, branches(0))
+        if (resultCode != 0) {
+          System.exit(resultCode)
+        }
       case Array("help", services@_*) => usage
       case emptyArry if (emptyArry.isEmpty)  => usage
-      case _ => other(args)
-
+      case _ =>
+        val resultCode = other(args)
+        if (resultCode != 0) {
+          System.exit(resultCode)
+        }
     }
 
   }
@@ -230,8 +236,11 @@ object Main {
       service.updateGid(context)
     }
 
-    intercept(%%.git("commit", "-am", s"update gid for ${context.scomposeBranch}")(cwd))
+    val result: CommandResult = intercept(%%.git("commit", "-am", s"update gid for ${context.scomposeBranch}")(cwd))
     println("update commit id end. If you want to submit it to gitlab, just do: git push")
+    if (result.exitCode != 0) {
+      System.exit(result.exitCode)
+    }
   }
 
   def sdiff(context: Context, services: Seq[String]): Unit = {
@@ -369,7 +378,7 @@ object Main {
   }
 
 
-  def srollback(context: Context, branch: String): Unit = {
+  def srollback(context: Context, branch: String): Int = {
     exitWhileFailed("scompose")(%%.git("checkout", "tag_" + branch)(cwd))
 
     other(Array("up", "-d"))
@@ -385,7 +394,7 @@ object Main {
   }
 
   // Just a concept for docer-compose
-  def other(args: Array[String]): Unit = {
+  def other(args: Array[String]): Int = {
 
     val nodeName = getNodeName
 
