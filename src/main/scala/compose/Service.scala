@@ -512,7 +512,8 @@ case class Service(name: String, projectName: String, gitURL: String,
         if (isMvnCommand(_projectPath)) {
           mvnInstall(_projectPath, mvnProfile)
         } else if (isSbtCommand(_projectPath)) {
-          sbtPackage(_projectPath) //依赖项目一般都是打包，不会打镜像
+          sbtPackage(_projectPath)
+          sbtDocker(_projectPath)
         }
 
       } else {
