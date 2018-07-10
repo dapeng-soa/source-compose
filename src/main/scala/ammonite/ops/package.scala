@@ -62,7 +62,6 @@ package object ops extends Extensions with RelPathStuff{
    * The current working directory for this process.
    */
   lazy val cwd = ops.Path(new java.io.File("").getCanonicalPath)
-  //lazy val cwd = ops.Path(new java.io.File("C:\\Users\\23294\\dev\\today\\tscompose").getCanonicalPath)
 
   /**
     * If you want to call subprocesses using [[%]] or [[%%]] and don't care
