@@ -25,7 +25,7 @@ case class Service(name: String, projectName: String, gitURL: String,
                    gitBranch: String, relatedSources: List[Service],
                    depends: List[String], buildDepends: List[Service],
                    image: String, gitSubmoduleFolder: Option[String],
-                   npmFolder: Option[String], publicImage: Boolean, buildOperation: String) {
+                   npmFolder: Option[String], publicImage: Boolean, buildOperation: String = "") {
   /**
     * 把当前分支的commitId写入.local.gitid.ini
     *
@@ -274,7 +274,7 @@ case class Service(name: String, projectName: String, gitURL: String,
     * @param context
     * @param gids
     */
-  def smake(context: Context, gids: Map[String, String], mvnProfile: String): Unit = {
+  def smake(context: Context, gids: Map[String, String]): Unit = {
     if (!publicImage) {
       println(s"$projectName make begin")
 
@@ -283,22 +283,29 @@ case class Service(name: String, projectName: String, gitURL: String,
       val realImage = getRealImage(gids)
       if (isMvnCommand(projectPath) || isSbtCommand(projectPath)) {
         if (gitSubmoduleFolder.isDefined || isNeedBuildLocally(realImage)) {
-          println(s" build handled services: ${context.handled}")
+//          println(s" build handled services: ${context.handled}")
+//
+//          npmFolder.foreach(_npmFolder => {
+//            val npmPath = Path(_npmFolder, projectPath)
+//            val buildResult = %.npm("install")(npmPath)
+//
+//            if (buildResult != 0) System.exit(buildResult)
+//
+//            val buildResult2 = %.npm("run", "build:happy")(npmPath)
+//
+//            if (buildResult2 != 0) System.exit(buildResult2)
+//          })
+//
+//          if (isMvnCommand(projectPath)) mvnInstall(projectPath, mvnProfile)
+//          else sbtDocker(projectPath)
+//
+          println(" ===============================================================")
+          println(s" Smaking ${name}...........")
+          println(" ===============================================================")
+          val cmd = buildOperation.split(" ").toVector
+          val command = Command(cmd, Map.empty, Shellout.executeInteractive)
 
-          npmFolder.foreach(_npmFolder => {
-            val npmPath = Path(_npmFolder, projectPath)
-            val buildResult = %.npm("install")(npmPath)
-
-            if (buildResult != 0) System.exit(buildResult)
-
-            val buildResult2 = %.npm("run", "build:happy")(npmPath)
-
-            if (buildResult2 != 0) System.exit(buildResult2)
-          })
-
-          if (isMvnCommand(projectPath)) mvnInstall(projectPath, mvnProfile)
-          else sbtDocker(projectPath)
-
+          command.execute(projectPath, command)
         }
       }
 
@@ -348,7 +355,7 @@ case class Service(name: String, projectName: String, gitURL: String,
     }
   }
 
-  def sbuild(context: Context, gids: Map[String, String], cacheGids:Map[String, String], mvnProfile: String): Unit = {
+  def sbuild(context: Context, gids: Map[String, String], cacheGids:Map[String, String]): Unit = {
     if (!publicImage) {
       println(s"$projectName build begin")
       val beginTimeInMills = System.currentTimeMillis()
@@ -357,15 +364,15 @@ case class Service(name: String, projectName: String, gitURL: String,
 
       if (isNeedBuildLocally(realImage)) {
         println(s"need rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
-        buildDependsProjects(context, mvnProfile, cacheGids)
+        buildDependsProjects(context, cacheGids)
       }
 
-      smake(context, gids, mvnProfile)
+      smake(context, gids)
       println(s"$projectName build end, cost:${(System.currentTimeMillis() - beginTimeInMills) / 1000}")
     }
   }
 
-  def srebuild(context: Context, gids: Map[String, String], cacheGids: Map[String, String] , mvnProfile: String): Map[String, String] = {
+  def srebuild(context: Context, gids: Map[String, String], cacheGids: Map[String, String]): Map[String, String] = {
     if (!publicImage) {
       println(s"SERVICE_CALCULATE $projectName rebuild begin")
 
@@ -377,7 +384,7 @@ case class Service(name: String, projectName: String, gitURL: String,
       val (newCacheGids, dependencyBuildTimes): (Map[String, String], List[(String, Long)]) = if (npmFolder.isDefined || isNeedBuildLocally(realImage)) {
         println(s"SERVICE_CALCULATE Rebuild ${projectName} dependsProjects: ${buildDepends.filterNot { i => context.handled.contains(i.name) }}")
 
-        buildDependsProjects(context, mvnProfile, cacheGids)
+        buildDependsProjects(context, cacheGids)
       } else {
         (Map[String, String](), List[(String, Long)]())
       }
@@ -388,19 +395,16 @@ case class Service(name: String, projectName: String, gitURL: String,
       val cacheGid = (cacheGids ++ newCacheGids).get(name)
 
       println(s"SERVICE_CALCULATE $projectName dependPath: $dependProjectPath projectCommitId: $projectCommmitId, name: $name cacheGid: $cacheGid")
-      val (projectCleanBeginTime, projectCleanEndTime, makeBeginTime,makeEndTime) =
+      val (makeBeginTime,makeEndTime) =
         if (gitSubmoduleFolder.isDefined || !cacheGid.isDefined || !cacheGid.get.equals(projectCommmitId)) {
-        val projectCleanBeginTime = System.currentTimeMillis()
-        sclean(context)
-        val projectCleanEndTime = System.currentTimeMillis()
 
         val makeBeginTime = System.currentTimeMillis()
-        smake(context, gids, mvnProfile)
+        smake(context, gids)
         val makeEndTime = System.currentTimeMillis()
 
-        (projectCleanBeginTime, projectCleanEndTime, makeBeginTime,makeEndTime)
+        (makeBeginTime,makeEndTime)
       } else {
-        (0L,0L,0L,0L)
+        (0L,0L)
       }
 
       //update .build.cache.ini
@@ -410,7 +414,7 @@ case class Service(name: String, projectName: String, gitURL: String,
       dependencyBuildTimes.foreach(i => println(s"SERVICE_CALCULATE ${i._1} build time: ${i._2} ms, toSeconds: ${i._2 / 1000} s"))
 
       println(s"SERVICE_CALCULATE dependency build totalTime: ${dependencyProjectBuildEndTime - dependencyProjectBuildBeginTime} ms, toSeconds: ${(dependencyProjectBuildEndTime - dependencyProjectBuildBeginTime) / 1000} s")
-      println(s"SERVICE_CALCULATE $projectName rebuild cleanTime: ${projectCleanEndTime - projectCleanBeginTime} ms,  makeTime: ${makeEndTime - makeBeginTime} ms")
+      println(s"SERVICE_CALCULATE $projectName rebuild ,  makeTime: ${makeEndTime - makeBeginTime} ms")
       println(s"SERVICE_CALCULATE $projectName rebuild end, cost:${(System.currentTimeMillis() - beginTimeInMills)} ms, toSeconds: ${(System.currentTimeMillis() - beginTimeInMills) / 1000} s")
       println(s"SERVICE_CALCULATE ")
 
@@ -488,7 +492,7 @@ case class Service(name: String, projectName: String, gitURL: String,
     needBuildLocally
   }
 
-  private def buildDependsProjects(context: Context, mvnProfile: String, cacheGids: Map[String, String]): (Map[String, String], List[(String, Long)]) = {
+  private def buildDependsProjects(context: Context, cacheGids: Map[String, String]): (Map[String, String], List[(String, Long)]) = {
 
     val newCacheGids = collection.mutable.HashMap[String,String]()
     newCacheGids ++= cacheGids
@@ -503,19 +507,19 @@ case class Service(name: String, projectName: String, gitURL: String,
       val projectCommmitId = getGitCommitId(dependProjectPath)
       val cacheGid = newCacheGids.get(buildDependService.name)
 
+      val dependService = context.services.get(buildDependService.name)
+      if (!dependService.isDefined) {
+        println(s" 找不到对应的depndencyService 配置: buildDenpendService: ${buildDependService.name}")
+      }
+      val buildOperation = dependService.get.buildOperation
+
       println(s"compare buildDependService.projectName: ${buildDependService.projectName}, buildDependService.name: ${buildDependService.name}  CommitIdByProjectName: ${projectCommmitId}, cacheGidByName: ${cacheGid}")
       if (!cacheGid.isDefined || !cacheGid.get.equals(projectCommmitId)) {
-        println(s" SERVICE_CALCULATE need to rebuild dependency projectName: ${buildDependService.projectName}, buildDependService.name: ${buildDependService.name}")
-        val _projectPath = Path(buildDependService.projectName, Path(context.workspace))
-
-        sclean(_projectPath)
-        if (isMvnCommand(_projectPath)) {
-          mvnInstall(_projectPath, mvnProfile)
-        } else if (isSbtCommand(_projectPath)) {
-          sbtPackage(_projectPath)
-          sbtDocker(_projectPath)
-        }
-
+        println(" =========Build Dependency service start==============================================")
+        val cmd = buildOperation.split(" ").toVector
+        val command = Command(cmd, Map.empty, Shellout.executeInteractive)
+        command.execute(dependProjectPath, command)
+        println(" =========Build Dependency service end==============================================")
       } else {
         println(s"SERVICE_CALCULATE no need to rebuild dependency projectName: ${buildDependService.projectName}, buildDependService.name: ${buildDependService.name}")
       }

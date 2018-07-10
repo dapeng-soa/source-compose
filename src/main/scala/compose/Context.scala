@@ -41,13 +41,11 @@ class Context {
 
   def loadConfiguration(ymlFiles: Seq[Path]): Context = {
     val NonOperationPattern= """(.*/(.*?)\.git)@@(.*)""".r
-    val OperationPattern= """(.*/(.*?)\.git)@@(.*);(.*)""".r
 
     def getLabelDetail(labelValue: String) = {
       labelValue match {
-        case OperationPattern(gitUrl, projectName, branch, operation) => (gitUrl, projectName, branch, operation)
-        case NonOperationPattern(gitUrl, projectName, branch) => (gitUrl, projectName, branch, "")
-        case _ => ("","","","")
+        case NonOperationPattern(gitUrl, projectName, branch) => (gitUrl, projectName, branch)
+        case _ => ("","","")
       }
     }
     def getLabels(service: collection.mutable.Map[String, Any]): Map[String, String]  = service("labels").asInstanceOf[java.util.List[String]].asScala.map { label =>
@@ -64,10 +62,11 @@ class Context {
 
       //val Pattern(gitURL, gitName, gitBranch) = if (publicImage) "dapeng/dapeng.git@@master" else labels("project.source")
       val sourceFieldVal = if (publicImage) "dapeng/dapeng.git@@master" else labels("project.source")
-      val (gitURL, gitName, gitBranch, buildOperation) = getLabelDetail(sourceFieldVal)
+      //fixme 优化代码，把不必要的buildOperation去掉
+      val (gitURL, gitName, gitBranch) = getLabelDetail(sourceFieldVal)
 
       val relatedSources = labels.filterKeys(_.startsWith("project.source.")).map { case (_, value) =>
-        val (relateGitURL, relateProjectName, relateProjectBranch, relateProjectOp) = getLabelDetail(value)
+        val (relateGitURL, relateProjectName, relateProjectBranch) = getLabelDetail(value)
         Service(
           name = images(name)._1,
           projectName = relateProjectName,
@@ -79,17 +78,18 @@ class Context {
           image = images(name)._2,
           gitSubmoduleFolder = None,
           npmFolder = None,
-          publicImage = false,
-          relateProjectOp
+          publicImage = false
         )
       }.toList
 
       val depends: Array[String] = labels.getOrElse("project.depends", "").split(",").map(_.trim).filterNot(_.isEmpty)
 
+      val serviceOperation = labels.getOrElse("project.operation","")
+
       val buildDepends = labels.filterKeys(_.startsWith("project.build-depends.")).toList
         .sortBy(i => (i._1.substring(i._1.lastIndexOf(".") + 1)).toInt)
         .map { case (_, value) =>
-          val (dependGitURL, dependName, dependBranch, dependOp) = getLabelDetail(value)
+          val (dependGitURL, dependName, dependBranch) = getLabelDetail(value)
           val imageName = if (images.contains(name)) images(name)._2 else ""
           val serviceName = if (images.contains(dependName)) images(dependName)._1 else dependName
           Service(
@@ -103,8 +103,7 @@ class Context {
             image = imageName,
             gitSubmoduleFolder = None,
             npmFolder = None,
-            publicImage = false,
-            dependOp
+            publicImage = false
           )
         }
 
@@ -120,7 +119,7 @@ class Context {
         gitSubmoduleFolder = labels.get("project.submodule-folder"),
         npmFolder = labels.get("project.npm-folder"),
         publicImage = publicImage,
-        buildOperation)
+        serviceOperation)
     }
 
     def getImages(ymlFiles: Seq[Path]) = {

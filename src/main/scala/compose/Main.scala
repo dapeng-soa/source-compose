@@ -59,12 +59,11 @@ object Main {
     }
 
     val context = new Context().loadConfiguration(Array(ymlFile))
-    val supportedOption = Array("-X", "-force", "-f", "-P", "-skipRemoteCheck")
+    val supportedOption = Array("-X", "-force", "-f", "-skipRemoteCheck")
 
 
     if (args.exists(_ == "-X")) Main.debugMode = true
     if (args.exists(arg => (arg == "-skipRemoteCheck")||(arg == "-force")||(arg == "-f"))) Main.skipRemoteCheck = true
-    val mvnProfile = args.filter(_.startsWith("-P")).headOption.getOrElse("")
 
     args.diff(supportedOption).filter(!_.startsWith("-P")) match {
       case Array("s-update-gid", services@_*) =>
@@ -94,16 +93,16 @@ object Main {
         sclean(context, services) // mvn clean
       case Array("s-make", services@_*) =>
         checkBranch(context)
-        smake(context, services, mvnProfile) // mvn install -Dmaven.test.skip ; docker tag
+        smake(context, services) // mvn install -Dmaven.test.skip ; docker tag
       case Array("s-docker-push", services@_*) =>
         checkBranch(context)
         sdockerPush(context, services) // docker push
       case Array("s-build", services@_*) =>
         checkBranch(context)
-        sbuild(context, services, mvnProfile) // s-make
+        sbuild(context, services) // s-make
       case Array("s-rebuild", services@_*) =>
         checkBranch(context)
-        srebuild(context, services, mvnProfile) //
+        srebuild(context, services) //
       case Array("s-list", services@_*) =>
         checkBranch(context)
         slist(context) //
@@ -156,11 +155,11 @@ object Main {
   }
 
 
-  def smake(context: Context, services: Seq[String], mvnProfile: String): Unit = {
+  def smake(context: Context, services: Seq[String]): Unit = {
     val gids = loadPropertiesByIni(gitIdIni.name)
     val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
     todos.foreach { service =>
-      context.services(service).smake(context, gids, mvnProfile)
+      context.services(service).smake(context, gids)
       println()
     }
   }
@@ -173,20 +172,20 @@ object Main {
     }
   }
 
-  def sbuild(context: Context, services: Seq[String], mvnProfile: String): Unit = {
+  def sbuild(context: Context, services: Seq[String]): Unit = {
     val beginTimeInMills = System.currentTimeMillis()
     val gids = loadPropertiesByIni(gitIdIni.name)
     val cacheGids = loadPropertiesByIni(buildCacheIni.name)
     val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
     todos.diff(ignoreServices).foreach { service =>
-      context.services(service).sbuild(context, gids, cacheGids, mvnProfile)
+      context.services(service).sbuild(context, gids, cacheGids)
       println()
     }
 
     println(s"sbuild done. cost:${(System.currentTimeMillis() - beginTimeInMills) / 1000}")
   }
 
-  def srebuild(context: Context, services: Seq[String], mvnProfile: String): Unit = {
+  def srebuild(context: Context, services: Seq[String]): Unit = {
     val beginTimeInMills = System.currentTimeMillis()
     val gids = loadPropertiesByIni(gitIdIni.name)
     val cacheGids = loadPropertiesByIni(buildCacheIni.name)
@@ -200,7 +199,7 @@ object Main {
     println(s"filtered sorted toBuild services: ${todos}")
     println("")
     todos.diff(ignoreServices).foreach { service =>
-      val tempGids = context.services(service).srebuild(context, gids, cacheGids, mvnProfile)
+      val tempGids = context.services(service).srebuild(context, gids, cacheGids)
       newCacheGids ++= tempGids
     }
 
