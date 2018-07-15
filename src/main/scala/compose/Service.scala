@@ -509,17 +509,23 @@ case class Service(name: String, projectName: String, gitURL: String,
 
       val dependService = context.services.get(buildDependService.name)
       if (!dependService.isDefined) {
-        println(s" 找不到对应的depndencyService 配置: buildDenpendService: ${buildDependService.name}")
+        println(s" ==================WARNING======================")
+        println(s" 找不到对应的depndencyService 配置: buildDenpendService: ${buildDependService.name}, 跳过构建... 如需构建，请手动更改........")
+        println(s" ==================WARNING======================")
       }
-      val buildOperation = dependService.get.buildOperation
 
       println(s"compare buildDependService.projectName: ${buildDependService.projectName}, buildDependService.name: ${buildDependService.name}  CommitIdByProjectName: ${projectCommmitId}, cacheGidByName: ${cacheGid}")
-      if (!cacheGid.isDefined || !cacheGid.get.equals(projectCommmitId)) {
-        println(" =========Build Dependency service start==============================================")
-        val cmd = buildOperation.split(" ").toVector
-        val command = Command(cmd, Map.empty, Shellout.executeInteractive)
-        command.execute(dependProjectPath, command)
-        println(" =========Build Dependency service end==============================================")
+      if ( (!cacheGid.isDefined || !cacheGid.get.equals(projectCommmitId))) {
+
+        if (dependService.isDefined) {
+          println(" =========Build Dependency service start==============================================")
+          val buildOperation = dependService.get.buildOperation
+          val cmd = buildOperation.split(" ").toVector
+          val command = Command(cmd, Map.empty, Shellout.executeInteractive)
+          command.execute(dependProjectPath, command)
+          println(" =========Build Dependency service end==============================================")
+        }
+
       } else {
         println(s"SERVICE_CALCULATE no need to rebuild dependency projectName: ${buildDependService.projectName}, buildDependService.name: ${buildDependService.name}")
       }
