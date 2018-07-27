@@ -1,8 +1,9 @@
 package compose
 
+import java.io.FileWriter
+
 import ammonite.ops._
 import org.yaml.snakeyaml.Yaml
-
 import Utils._
 
 import scala.collection.JavaConverters._
@@ -129,6 +130,9 @@ class Context {
         val yaml = new Yaml().load(content).asInstanceOf[java.util.Map[String, Any]].asScala
 
         val servicesYaml = yaml("services").asInstanceOf[java.util.Map[String, Any]].asScala
+
+        val yamlObj = new Yaml().dump(yaml.asJava, new FileWriter("C:\\dev\\test.yml"))
+
         val images: mutable.Map[String, (String,String)] = servicesYaml.flatMap{case (name, serviceNode) => {
           val service =  serviceNode.asInstanceOf[java.util.Map[String, Any]].asScala
           val labels = getLabels(service)

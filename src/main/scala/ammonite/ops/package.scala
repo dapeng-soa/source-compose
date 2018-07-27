@@ -63,6 +63,8 @@ package object ops extends Extensions with RelPathStuff{
    */
   lazy val cwd = ops.Path(new java.io.File("").getCanonicalPath)
 
+  lazy val envs_path = ops.Path(new java.io.File(".\\.envs").getCanonicalPath)
+  //lazy val envs_path = ops.Path(new java.io.File("C:\\Users\\23294\\dev\\today\\tscompose\\.envs").getCanonicalPath)
   /**
     * If you want to call subprocesses using [[%]] or [[%%]] and don't care
     * what working directory they use, import this via

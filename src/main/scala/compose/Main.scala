@@ -44,7 +44,7 @@ object Main {
 
   // ignore services. you can skip building some services locally
   lazy val ignoreServices: List[String] = {
-    loadPropertiesByIni(s".local-${getNodeName}.ini").getOrElse("ignoreServices","").split(" ").toList
+    loadPropertiesByIni(envs_path / s".local-${getNodeName}.ini").getOrElse("ignoreServices","").split(" ").toList
   }
 
 
@@ -52,7 +52,7 @@ object Main {
 
     val ymlFile = cwd / "dc-all.yml"
 
-    val file = new File((cwd / Main.buildCacheIni.name).toString)
+    val file = new File((envs_path / Main.buildCacheIni.name).toString)
     if (!file.exists()) {
       file.createNewFile()
       println(s" .build-cache.ini file does not exists. created new File..")
@@ -156,7 +156,7 @@ object Main {
 
 
   def smake(context: Context, services: Seq[String]): Unit = {
-    val gids = loadPropertiesByIni(gitIdIni.name)
+    val gids = loadPropertiesByIni(cwd / gitIdIni.name)
     val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
     todos.foreach { service =>
       context.services(service).smake(context, gids)
@@ -174,8 +174,8 @@ object Main {
 
   def sbuild(context: Context, services: Seq[String]): Unit = {
     val beginTimeInMills = System.currentTimeMillis()
-    val gids = loadPropertiesByIni(gitIdIni.name)
-    val cacheGids = loadPropertiesByIni(buildCacheIni.name)
+    val gids = loadPropertiesByIni(cwd / gitIdIni.name)
+    val cacheGids = loadPropertiesByIni(envs_path / buildCacheIni.name)
     val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
     todos.diff(ignoreServices).foreach { service =>
       context.services(service).sbuild(context, gids, cacheGids)
@@ -187,8 +187,8 @@ object Main {
 
   def srebuild(context: Context, services: Seq[String]): Unit = {
     val beginTimeInMills = System.currentTimeMillis()
-    val gids = loadPropertiesByIni(gitIdIni.name)
-    val cacheGids = loadPropertiesByIni(buildCacheIni.name)
+    val gids = loadPropertiesByIni(cwd / gitIdIni.name)
+    val cacheGids = loadPropertiesByIni(envs_path / buildCacheIni.name)
 
     var newCacheGids = collection.mutable.HashMap[String,String]()
     newCacheGids ++= cacheGids
@@ -256,7 +256,7 @@ object Main {
 
   def slog(context: Context, services: Seq[String]): Unit = {
     val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
-    val gids = loadPropertiesByIni(gitIdIni.name)
+    val gids = loadPropertiesByIni(cwd / gitIdIni.name)
     todos.foreach(context.services(_).slog(context, gids))
 
     todos.flatMap(context.services(_).relatedSources).toSet[Service].foreach { service =>
@@ -273,7 +273,7 @@ object Main {
     // git 游离态的问题
     spull(context, services)
 
-    val gids = loadPropertiesByIni(gitIdIni.name)
+    val gids = loadPropertiesByIni(cwd / gitIdIni.name)
     todos.foreach(context.services(_).spullByCommit(context, gids))
 
     todos.flatMap(context.services(_).relatedSources).toSet[Service].foreach { service =>
@@ -312,7 +312,7 @@ object Main {
       System.exit(mergeResult)
     }
 
-    val gids = loadPropertiesByIni(gitIdIni.name)
+    val gids = loadPropertiesByIni(cwd / gitIdIni.name)
 
     //记录升级内容
     val versionBuf = new StringBuffer(new SimpleDateFormat("YYYYMMdd HHmm").format(new Date()) + s" $branch\n")
@@ -369,7 +369,7 @@ object Main {
 
 
   def sdockerPush(context: Context, services: Seq[String]): Unit = {
-    val gids = loadPropertiesByIni(gitIdIni.name)
+    val gids = loadPropertiesByIni(cwd / gitIdIni.name)
     val todos: Seq[String] = if (!services.isEmpty) services else context.sortedServices.map(_.name)
     todos.foreach(context.services(_).sdockerPush(context, gids))
 
@@ -383,10 +383,10 @@ object Main {
     other(Array("up", "-d"))
   }
 
-  def loadPropertiesByIni(ini: String): Map[String, String] = {
+  def loadPropertiesByIni(iniPath: Path): Map[String, String] = {
     val gids = new Properties()
-    val gitIdIni = cwd / ini
-    val is = new FileInputStream(gitIdIni.toIO)
+    //val gitIdIni: Path = envs_path / ini
+    val is = new FileInputStream(iniPath.toIO)
     gids.load(is)
     is.close()
     JavaConverters.propertiesAsScalaMap(gids).toMap
@@ -397,11 +397,11 @@ object Main {
 
     val nodeName = getNodeName
 
-    val gids: Map[String, String] = loadPropertiesByIni(gitIdIni.name).map { case (k, v) => (k + "_gid", v) }
-    val localIni = cwd / s".local-${nodeName}.ini"
+    val gids: Map[String, String] = loadPropertiesByIni(cwd / gitIdIni.name).map { case (k, v) => (k + "_gid", v) }
+    val localIni = envs_path / s".local-${nodeName}.ini"
 
-    val _envs: Map[String, String] = loadPropertiesByIni(".local.ini") ++ gids ++ (
-      if (exists ! localIni) loadPropertiesByIni(s".local-${nodeName}.ini") else Map.empty) // load from .local-$nodeName.env and build a Map
+    val _envs: Map[String, String] = loadPropertiesByIni(envs_path / ".local.ini") ++ gids ++ (
+      if (exists ! localIni) loadPropertiesByIni(envs_path / s".local-${nodeName}.ini") else Map.empty) // load from .local-$nodeName.env and build a Map
 
     val envs: Map[String, String] = _envs.map { case (k, v) => {
       if (v.startsWith("$")) {
